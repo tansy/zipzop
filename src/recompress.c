@@ -26,6 +26,8 @@
 #include <zlib.h>
 #include "zipzop.h"
 #include "deflate.h"
+#include "libdeflate.h"
+#include <assert.h>
 
 const int METHOD_DEFLATE = 8;
 
@@ -69,15 +71,31 @@ static void zopfli_deflate(const uchar *src, size_t src_size,
 	  dst_p, dst_size_p);
 }
 
+static void libdeflate_deflate(const uchar *src, size_t src_size,
+			   uchar **dst_p, size_t *dst_size_p,
+			   int level) {
+  static struct libdeflate_compressor *ld_compressor;
+  ld_compressor = libdeflate_alloc_compressor(level<12 ? level : 12);
+  if (ld_compressor == NULL)
+    fprintf(stderr, "error: libdeflate_alloc_compressor(): NULL\n");
+  assert(ld_compressor != NULL);
+  //libdeflate_deflate_compress(struct libdeflate_compressor *compressor,
+  //                            const void *in, size_t in_nbytes,
+  //                            void *out, size_t out_nbytes_avail);
+  *dst_size_p = libdeflate_deflate_compress(ld_compressor, src, src_size, *dst_p, *dst_size_p);
+  if (*dst_size_p == 0)
+    fprintf(stderr, "error: libdeflate_zlib_compress()\n");
+}
+
 static void copy_filename_suffix(const char *src, size_t src_size,
 				 char *buf, size_t buf_size) {
   if (src_size <= buf_size) {
     strncpy(buf, src, src_size);
-    
+
     if (src_size < buf_size) {
       buf[src_size] = '\0';
     }
-    
+
     return;
   }
 
@@ -96,10 +114,10 @@ void recompress_entry(FILE *infile,
   copy_filename_suffix(header->ext, header->filename_len, filename, FILENAME_BUF_SIZE);
   filename[FILENAME_BUF_SIZE] = '\0';
 
-  size_t src_size = header->comp_size;
-  uchar *src = (uchar *)allocate_or_exit(src_size);
+  size_t src_size = header->comp_size; // compressed input deflate stream size
+  uchar *src = (uchar *)allocate_or_exit(src_size); // compressed input deflate stream
   read_bytes(src, src_size, infile);
-  
+
   if (header->method != METHOD_DEFLATE) {
     write_local_file_header(outfile, header);
     write_bytes(src, src_size, outfile);
@@ -109,13 +127,21 @@ void recompress_entry(FILE *infile,
 
   printf("%-32s : %zd -> ", filename, src_size);
 
-  size_t uncomp_size = header->uncomp_size;
-  uchar *tmp = (uchar *)allocate_or_exit(uncomp_size);
+  size_t uncomp_size = header->uncomp_size; // uncompressed stream size
+  uchar *tmp = (uchar *)allocate_or_exit(uncomp_size); // uncompressed stream
   inflate_src(src, src_size, tmp, uncomp_size);
 
   uchar *dst = NULL;
   size_t dst_size = 0;
-  zopfli_deflate(tmp, uncomp_size, &dst, &dst_size, num_iterations);
+  if (num_iterations <= 12) {
+    dst_size = (size_t)uncomp_size*1.05+5000+8+1;
+    dst = (uchar *)allocate_or_exit(dst_size);
+    libdeflate_deflate(tmp, uncomp_size, &dst, &dst_size, num_iterations);
+    ///fprintf(stderr, "lv=%02d: src_size=%d, uncomp_size=%d, dst_size=%d\n", num_iterations, src_size, uncomp_size, dst_size);
+  }
+  else {
+    zopfli_deflate(tmp, uncomp_size, &dst, &dst_size, num_iterations);
+  }
 
   if (dst_size > src_size) {
     free(dst);
