@@ -17,6 +17,7 @@ LDFLAGS = $(OPT_LDFLAGS)
 
 ZIPZOP_OBJS = header.o recompress.o zz_util.o zipzop.o
 ZOPFLI_DIR = zopfli
+ZOPFLISRC_DIR = zopfli/src/zopfli
 #OBJS = $(ZOPFLI_OBJS) $(ZIPZOP_OBJS)
 OBJS = $(ZIPZOP_OBJS)
 LIBDEFLATE_DIR = libdeflate
@@ -31,54 +32,19 @@ $(TARGET): $(OBJS)
 
 header.o: src/header.c
 	$(CC) $< $(CFLAGS) $(INCLUDES)
-recompress.o: src/recompress.c $(ZOPFLI_DIR)/deflate.h
+recompress.o: src/recompress.c $(ZOPFLISRC_DIR)/deflate.h
 	$(CC) $< $(CFLAGS) $(INCLUDES)
 zz_util.o: src/zz_util.c
 	$(CC) $< $(CFLAGS) $(INCLUDES)
 zipzop.o: src/zipzop.c
 	$(CC) $< $(CFLAGS) $(INCLUDES)
 
-blocksplitter.o: zopfli/blocksplitter.c
-	$(CC) $< $(CFLAGS)
-cache.o: zopfli/cache.c
-	$(CC) $< $(CFLAGS)
-deflate.o: zopfli/deflate.c
-	$(CC) $< $(CFLAGS)
-hash.o: zopfli/hash.c
-	$(CC) $< $(CFLAGS)
-katajainen.o: zopfli/katajainen.c
-	$(CC) $< $(CFLAGS)
-lz77.o: zopfli/lz77.c
-	$(CC) $< $(CFLAGS)
-squeeze.o: zopfli/squeeze.c
-	$(CC) $< $(CFLAGS)
-tree.o: zopfli/tree.c
-	$(CC) $< $(CFLAGS)
-util.o: zopfli/util.c
-	$(CC) $< $(CFLAGS)
-zopfli_lib.o: zopfli/zopfli_lib.c
-	$(CC) $< $(CFLAGS)
-zlib_container.o: zopfli/zlib_container.c
-	$(CC) $< $(CFLAGS)
-gzip_container.o: zopfli/gzip_container.c
-	$(CC) $< $(CFLAGS)
-
-zopfli/blocksplitter.c: zopfli
-zopfli/cache.c: zopfli
-zopfli/deflate.c: zopfli
-zopfli/deflate.h: zopfli
-zopfli/hash.c: zopfli
-zopfli/katajainen.c: zopfli
-zopfli/lz77.c: zopfli
-zopfli/squeeze.c: zopfli
-zopfli/tree.c: zopfli
-zopfli/util.c: zopfli
-zopfli/zopfli_lib.c: zopfli
-zopfli/zlib_container.c: zopfli
-zopfli/gzip_container.c: zopfli
 
 zopfli:
-	git clone https://code.google.com/p/zopfli/
+	git clone https://github.com/google/zopfli/
+
+libdeflate:
+	git clone https://github.com/ebiggers/libdeflate
 
 clean:
 	rm -rf zopfli *.o $(TARGET)
