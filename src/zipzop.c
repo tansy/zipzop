@@ -23,12 +23,16 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "zipzop.h"
+#include "libdeflate.h"
 
 #define IS_LOCAL_FILE_HEADER(sig) ((((sig) >> 16) & 0xffff) == 0x0403)
 #define IS_CENTRAL_DIRECTORY_FILE_HEADER(sig) ((((sig) >> 16) & 0xffff) == 0x0201)
 #define IS_END_RECORD(sig) ((((sig) >> 16) & 0xffff) == 0x0605)
+
+extern struct libdeflate_compressor *ld_compressor;
 
 typedef struct {
   u32 comp_size;
@@ -70,7 +74,7 @@ void recompress_zip(FILE *infile, FILE *outfile, int num_iterations) {
     if (IS_LOCAL_FILE_HEADER(header->signature)) {
       LocalFileHeader *_header = (LocalFileHeader *)header;
       comp_result[file_count].offset = ftell(outfile);
-      
+
       recompress_entry(infile, outfile, _header, num_iterations);
 
       comp_result[file_count].comp_size = _header->comp_size;
@@ -79,7 +83,7 @@ void recompress_zip(FILE *infile, FILE *outfile, int num_iterations) {
 
     } else if (IS_CENTRAL_DIRECTORY_FILE_HEADER(header->signature)) {
       if (central_dir_offset == 0xffffffff) {
-	central_dir_offset = ftell(outfile);
+        central_dir_offset = ftell(outfile);
       }
       CentralDirectoryFileHeader *_header = (CentralDirectoryFileHeader *)header;
 
@@ -113,6 +117,7 @@ void show_result_size(FILE *infile, FILE *outfile) {
 }
 
 int main(int argc, char **argv) {
+  #ifndef TEST
   if (argc < 4) {
     puts("usage: zipzop NUM_ITERATIONS IN_FILE OUT_FILE");
     return 0;
@@ -134,6 +139,13 @@ int main(int argc, char **argv) {
     printf("ERROR: Cannot open output file: %s\n", argv[3]);
     return 1;
   }
+  #else // TEST
+  int num_iterations = 12;
+  FILE *infile = fopen("youtube-dl.zip", "rb");
+  FILE *outfile = fopen("youtube-dl.zip-ld", "wb");
+  #endif // TEST
+
+  ld_compressor = libdeflate_alloc_compressor(num_iterations<12 ? num_iterations : 12);
 
   recompress_zip(infile, outfile, num_iterations);
   show_result_size(infile, outfile);
