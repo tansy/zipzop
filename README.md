@@ -1,10 +1,10 @@
-zipzop-ld
-=========
+zipzop
+======
 
-Zipzop-ld is [libdeflate](https://github.com/ebiggers/libdeflate "libdeflate") variation of [zipzop](https://github.com/komiya-atsushi/zipzop) using libdeflate to re/compress deflate streams. It uses NUM_ITERATIONS <= 12 as libdeflate levels.
-[Licence](https://github.com/tansy/zipzop-ld/zipzop.README.md) is inherited from zipzop.
+Zipzop is a zip recompression program, that uses libzopfli to re/compress deflate streams. It uses iterations like g/zip compression levels, but from 1 to infinity.
+It originated from Komiya Atsushi's [zipzop](https://github.com/komiya-atsushi/zipzop). [Licence](license.txt) and original [README](README.md.jp) (in Japanese) is inherited from original.
 
-At the moment check [branches](https://github.com/tansy/zipzop-ld/branches) as they are modified.
+Usage:
+$ zipzop \<iterations\> \<in_file\> \<out_file\>
 
-In test directory there is a zip, with download script, that is main test suite at present.
-
+In test directory there are simple sef tests.

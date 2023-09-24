@@ -2,23 +2,21 @@ To compile link, copy or clone libdeflate and zopfli directories, build them
 
 ```
 $ ln -s /path/to/zopfli zopfli
-$ ln -s /path/to/libdeflate libdeflate
 ```
 
-You can also clone using `make libdeflate|zopfli`;
+You can also clone using `make zopfli`;
 
 Then build them.
 
 ```
 $ make -C zopfli
-$ make -C libdeflate
 ```
 
-and use Makefile-1-ld-g
+and use Makefile
 
 ```
-$ make -f Makefile-1-ld-g
+$ make -f Makefile
 ```
 
-This will generate `zipzop-ld`.
+This will generate `zipzop` executable.
 
