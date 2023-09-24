@@ -39,7 +39,7 @@ typedef struct {
 void read_header(FILE *infile, Header *header) {
   header->signature = read_u32(infile);
   if ((header->signature & 0xffff) != 0x4b50) {
-    puts("ERROR: Invalid zip format.");
+    printf("ERROR: Invalid zip format. %4zx\n", header->signature);
     exit(1);
   }
 
@@ -109,7 +109,7 @@ void show_result_size(FILE *infile, FILE *outfile) {
   size_t recomp = ftell(outfile);
 
   u32 diff = (int)recomp - orig;
-  printf("\noriginal -> recompressed\n\t%zd -> %zd bytes (%ld bytes)\n", orig, recomp, diff);
+  printf("\noriginal -> recompressed\n\t%zd -> %zd bytes (%ld bytes = %zd%%)\n", orig, recomp, diff, 100 * (orig - recomp) / orig);
 }
 
 int main(int argc, char **argv) {

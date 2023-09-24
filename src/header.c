@@ -38,6 +38,10 @@ void read_local_file_header(FILE *infile, Header *_header) {
   
   size_t ext_size = header->filename_len + header->extra_len;
   read_bytes(header->ext, ext_size, infile);
+
+//  printf("ver %d flag %d method %d CRC %zd comp %zd size %zd namelen %d extra %d\n",
+//         header->ver_extract, header->bit_flag, header->method, header->crc32,
+//         header->comp_size, header->uncomp_size, header->filename_len, header->extra_len);
 }
 
 void write_local_file_header(FILE *outfile, LocalFileHeader *header) {

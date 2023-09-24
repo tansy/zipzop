@@ -86,15 +86,86 @@ static void copy_filename_suffix(const char *src, size_t src_size,
   strncpy(buf + 3, src + src_size - copy_len, copy_len);
 }
 
-#define FILENAME_BUF_SIZE 32
+#define FILENAME_BUF_SIZE 48
 
 void recompress_entry(FILE *infile,
 		      FILE *outfile,
 		      LocalFileHeader *header,
 		      int num_iterations) {
   char filename[FILENAME_BUF_SIZE + 1];
+
   copy_filename_suffix(header->ext, header->filename_len, filename, FILENAME_BUF_SIZE);
   filename[FILENAME_BUF_SIZE] = '\0';
+
+  // In the real world, many zip files defer writing the file size until after
+  // the compressed data.  This is signalled by a flag bit
+  if (header->bit_flag & 8)
+  {
+    // Run an inflate pass to find the size of the data
+    long startpos = ftell(infile);
+    long insize = 0;
+    long outsize = 0;
+    FILE *source = infile;
+
+    int ret;
+    unsigned have;
+  #define CHUNK 10000
+    unsigned char in[CHUNK];
+    unsigned char out[CHUNK];
+
+    z_stream strm = { .zalloc = Z_NULL, .zfree = Z_NULL, .opaque = Z_NULL };
+
+ //   printf("File deferred writing size till after the compressed data\n");
+
+    if (inflateInit2(&strm, -15) != Z_OK) {
+      puts("ERROR: Cannot initialize inflate z_stream");
+      exit(1);
+    }
+
+    // decompress until deflate stream ends or end of file
+    do
+    {
+      strm.avail_in = fread(in, 1, CHUNK, source);
+      if (ferror(source)) {
+        (void)inflateEnd(&strm);
+  //                   return Z_ERRNO;
+      }
+      if (strm.avail_in == 0)
+        break;
+      strm.next_in = in;
+
+      insize += strm.avail_in;
+
+      // run inflate() on input until output buffer not full
+      do {
+        strm.avail_out = CHUNK;
+        strm.next_out = out;
+
+        ret = inflate(&strm, Z_NO_FLUSH);
+  //                   assert(ret != Z_STREAM_ERROR);  /* state not clobbered */
+  //                   switch (ret) {
+  //                   case Z_NEED_DICT:
+  //                       ret = Z_DATA_ERROR;     /* and fall through */
+  //                   case Z_DATA_ERROR:
+  //                   case Z_MEM_ERROR:
+  //                       (void)inflateEnd(&strm);
+  //                       return ret;
+  //                   }
+
+        have = CHUNK - strm.avail_out;
+
+        outsize += have;
+
+      } while (strm.avail_out == 0);
+
+      // done when inflate() says it's done
+    } while (ret != Z_STREAM_END);
+
+ //   printf("Got file size compressed %ld uncompressed %ld @%ld\n", insize - strm.avail_in, outsize, startpos);
+    header->comp_size = insize - strm.avail_in;
+    header->uncomp_size = outsize;
+    fseek(infile, startpos, SEEK_SET);
+  }
 
   size_t src_size = header->comp_size;
   uchar *src = (uchar *)allocate_or_exit(src_size);
@@ -107,7 +178,7 @@ void recompress_entry(FILE *infile,
     return;
   }
 
-  printf("%-32s : %zd -> ", filename, src_size);
+  printf("%-*s : %zd -> ", FILENAME_BUF_SIZE, filename, src_size);
 
   size_t uncomp_size = header->uncomp_size;
   uchar *tmp = (uchar *)allocate_or_exit(uncomp_size);
@@ -125,11 +196,28 @@ void recompress_entry(FILE *infile,
   }
 
   header->comp_size = dst_size;
-  printf("%zd bytes (%zd bytes)\n", dst_size, dst_size - src_size);
+  printf("%zd bytes (%zd bytes = %zd%%) \n", dst_size, dst_size - src_size, 100 * (src_size - dst_size) / src_size );
 
   write_local_file_header(outfile, header);
   write_bytes(dst, dst_size, outfile);
 
   free(dst);
   free(src);
+
+  // Now we need to step over any deferred size data that is in the stream
+  if (header->bit_flag & 8)
+  {
+    // Deferred data is present
+    int first =  read_u32(infile);
+    if (first == 0x08074b50)
+    {
+      // It includes a signature, so a larger step over is needed
+      fseek(infile, 12, SEEK_CUR);
+    }
+    else
+    {
+      // Just step over the smaller structure
+      fseek(infile, 8, SEEK_CUR);
+    }
+  }
 }
