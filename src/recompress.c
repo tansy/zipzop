@@ -25,7 +25,9 @@
 
 #include <zlib.h>
 #include "zipzop.h"
+#include "zopfli.h"
 #include "deflate.h"
+#include "zopfli/src/zopfli/deflate.h"
 
 const int METHOD_DEFLATE = 8;
 
@@ -84,6 +86,43 @@ static void copy_filename_suffix(const char *src, size_t src_size,
   buf[0] = buf[1] = buf[2] = '.';
   size_t copy_len = buf_size - 3;
   strncpy(buf + 3, src + src_size - copy_len, copy_len);
+}
+
+///static void zopfli_deflate(const uchar *src, size_t src_size, uchar **dst_p, size_t *dst_size_p, int num_iterations)
+///int64_t zlib_turbo_compress(char *inbuf, size_t insize, char *outbuf, size_t outsize, codec_options_t *codec_options)
+size_t zlib_turbo_compress(char *inbuf, size_t insize, char *outbuf, size_t outsize, int clevel)
+{
+    z_stream strm;
+    memset(&strm, 0, sizeof(strm));
+    ///if (deflateInit(&strm, codec_options->level) != Z_OK)
+    if (deflateInit(&strm, clevel) != Z_OK)
+        return 0;
+    // levels 4-9 search on worker threads, with the output of one thread; without
+    // threads in the build this fails, and the stream stays on one thread
+    ///if (codec_options->threads > 1)
+    ///    deflateSetThreads(&strm, codec_options->threads);
+
+    // as compress2(), which cannot take deflateSetThreads()
+    const uInt max = (uInt)-1;
+    size_t in_left = insize, out_left = outsize;
+    strm.next_in = (Bytef*)inbuf;
+    strm.next_out = (Bytef*)outbuf;
+    int err;
+    do {
+        if (strm.avail_out == 0) {
+            strm.avail_out = out_left > max ? max : (uInt)out_left;
+            out_left -= strm.avail_out;
+        }
+        if (strm.avail_in == 0) {
+            strm.avail_in = in_left > max ? max : (uInt)in_left;
+            in_left -= strm.avail_in;
+        }
+        err = deflate(&strm, in_left ? Z_NO_FLUSH : Z_FINISH);
+    } while (err == Z_OK);
+    ///int64_t complen = (char*)strm.next_out - outbuf;
+    size_t complen = (char*)strm.next_out - outbuf;
+    deflateEnd(&strm);
+    return err == Z_STREAM_END ? complen : 0;
 }
 
 #define FILENAME_BUF_SIZE 48
@@ -186,7 +225,16 @@ void recompress_entry(FILE *infile,
 
   uchar *dst = NULL;
   size_t dst_size = 0;
-  zopfli_deflate(tmp, uncomp_size, &dst, &dst_size, num_iterations);
+  if (num_iterations <= 12) {
+    dst_size = (size_t)uncomp_size*1.0000825+30;
+    dst = (uchar *)allocate_or_exit(dst_size);
+    ///size_t zlib_turbo_compress(char *inbuf, size_t insize, char *outbuf, size_t outsize, int clevel)
+    dst_size = zlib_turbo_compress((char*)tmp, uncomp_size, (char*)dst, dst_size, num_iterations);
+    ///fprintf(stderr, "lv=%02d: src_size=%d, uncomp_size=%d, dst_size=%d\n", num_iterations, src_size, uncomp_size, dst_size);
+  }
+  else {
+    zopfli_deflate(tmp, uncomp_size, &dst, &dst_size, num_iterations);
+  }
 
   if (dst_size > src_size) {
     free(dst);
