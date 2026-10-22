@@ -1,12 +1,13 @@
 #!/bin/bash
 
-if [ ! -d zlib ]; then
-    git clone git://github.com/madler/zlib.git
+if [ ! -d zopfli ]; then
+    git clone git://github.com/google/zopfli.git
 fi
 
-cd zlib
-make clean -f win32/Makefile.gcc
-make PREFIX=i586-mingw32msvc- -f win32/Makefile.gcc
-cd ../
+if [ ! -d zlib-turbo ]; then
+    git clone git://github.com/icodywu/zlib-turbo.git
+fi
 
-make PREFIX=i586-mingw32msvc- OPT_CFLAGS=-I./zlib OPT_LDFLAGS="-L./zlib -static" E=.exe
+make -C zlib-turbo -f win32/Makefile.gcc
+
+make OPT_CFLAGS=-I./zlib-turbo OPT_LDFLAGS="-L./zlib-turbo -static" E=.exe
